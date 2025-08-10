@@ -1,38 +1,21 @@
-# --- Fase 1: Compilación ---
-# Usamos una imagen de OpenJDK 17 para compilar el proyecto.
-# Le damos el alias 'builder'.
-FROM openjdk:17-jdk-slim as builder
-
-# Establecemos el directorio de trabajo dentro del contenedor.
-WORKDIR /app
-
-# Copiamos los archivos de Gradle. Esto se hace primero para aprovechar la caché de Docker.
-# Si no cambiamos las dependencias, Docker no necesitará volver a descargarlas en cada build.
-COPY build.gradle.kts settings.gradle.kts gradlew ./
-COPY gradle ./gradle
-
-# Damos permisos de ejecución al wrapper de Gradle.
-RUN chmod +x ./gradlew
-
-# Copiamos el resto del código fuente.
-COPY src ./src
-
-# Ejecutamos el comando de compilación de Gradle para crear un "fat jar" que contenga todas las dependencias.
-RUN ./gradlew installDist
-
-# --- Fase 2: Ejecución ---
-# Usamos una imagen mucho más ligera que solo contiene el entorno de ejecución de Java, no el JDK completo.
-FROM openjdk:17-jre-slim
+# Usamos una única imagen de OpenJDK 17 que tiene tanto el JDK como el JRE.
+FROM openjdk:17-jdk-slim
 
 # Establecemos el directorio de trabajo.
 WORKDIR /app
 
-# Copiamos ÚNICAMENTE los artefactos compilados desde la fase 'builder'.
-COPY --from=builder /app/build/install/secrelay-signaling-server ./
+# Copiamos todo el proyecto al contenedor.
+COPY . .
 
-# El puerto que Ktor usará por defecto. Render lo detectará.
+# Damos permisos de ejecución al wrapper de Gradle.
+RUN chmod +x ./gradlew
+
+# Ejecutamos la tarea de Gradle para crear un "fat jar" con todas las dependencias.
+# Esta es la tarea estándar que Ktor espera.
+RUN ./gradlew buildFatJar
+
+# Exponemos el puerto estándar de Ktor.
 EXPOSE 8080
 
-# El comando que se ejecutará cuando el contenedor se inicie.
-# Llama al script de lanzamiento generado por Gradle.
-CMD ["./bin/secrelay-signaling-server"]
+# El comando para iniciar el servidor. Apunta directamente al JAR compilado.
+CMD ["java", "-jar", "build/libs/secrelay-signaling-server-0.0.1-all.jar"]
