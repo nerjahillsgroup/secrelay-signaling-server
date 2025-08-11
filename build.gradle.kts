@@ -27,10 +27,10 @@ dependencies {
     implementation("io.ktor:ktor-server-websockets:2.3.12")
     implementation("io.ktor:ktor-server-netty:2.3.12")
     implementation("ch.qos.logback:logback-classic:1.4.14")
-
-    // --- AÑADIDO --- Dependencia para el SDK de Firebase Admin.
-    // Esto nos permitirá enviar notificaciones FCM desde el servidor.
     implementation("com.google.firebase:firebase-admin:9.5.0")
+
+    // --- AÑADIDO --- Dependencia para el plugin de Forwarded Headers.
+    implementation("io.ktor:ktor-server-forwarded-header:2.3.12")
 
     testImplementation("io.ktor:ktor-server-tests-jvm:2.3.12")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.9.0")
