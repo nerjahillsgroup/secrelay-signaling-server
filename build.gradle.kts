@@ -2,13 +2,13 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.ktor)
     alias(libs.plugins.kotlin.plugin.serialization)
+    alias(libs.plugins.shadow)
 }
 
 group = "com.example"
 version = "0.0.1"
 
 application {
-    // --- CORRECCIÓN --- Apuntamos a la clase principal con su paquete
     mainClass.set("com.example.ApplicationKt")
 }
 
