@@ -4,25 +4,28 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import java.io.FileInputStream
-import java.io.ByteArrayInputStream
+import java.io.InputStream
+import java.io.File
 
 object FirebaseAdmin {
 
     fun initializeFCM() {
         try {
-            // --- CORRECCIÓN --- Lógica para funcionar tanto en Render como localmente.
-            // 1. Intentamos obtener la credencial desde la variable de entorno (para Render).
-            val credentialsJson = System.getenv("GOOGLE_CREDENTIALS")
+            // --- CORRECCIÓN FINAL --- Lógica para funcionar en Render y localmente.
+            val renderSecretPath = "/etc/secrets/GOOGLE_CREDENTIALS"
+            val localResourcePath = "firebase-service-account.json"
 
-            val credentialsStream = if (credentialsJson != null) {
-                // Estamos en Render. La variable contiene el JSON.
-                println("--> Leyendo credenciales de GOOGLE_CREDENTIALS (entorno de Render).")
-                ByteArrayInputStream(credentialsJson.toByteArray(Charsets.UTF_8))
+            val credentialsStream: InputStream
+
+            // 1. Verificamos si estamos en el entorno de Render buscando su ruta de secretos.
+            if (File(renderSecretPath).exists()) {
+                println("--> Entorno de Render detectado. Leyendo credenciales desde $renderSecretPath.")
+                credentialsStream = FileInputStream(File(renderSecretPath))
             } else {
-                // No estamos en Render. Buscamos el archivo local (para pruebas).
-                println("--> GOOGLE_CREDENTIALS no encontrada. Buscando archivo local firebase-service-account.json.")
-                ClassLoader.getSystemResourceAsStream("firebase-service-account.json")
-                    ?: throw IllegalStateException("Archivo firebase-service-account.json no encontrado en resources.")
+                // 2. Si no, asumimos que estamos en un entorno local y buscamos en resources.
+                println("--> Entorno local detectado. Buscando archivo '$localResourcePath' en resources.")
+                credentialsStream = ClassLoader.getSystemResourceAsStream(localResourcePath)
+                    ?: throw IllegalStateException("Archivo '$localResourcePath' no encontrado en resources.")
             }
 
             val options = FirebaseOptions.builder()
