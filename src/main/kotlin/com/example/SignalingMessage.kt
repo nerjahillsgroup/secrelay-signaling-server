@@ -6,6 +6,6 @@ import kotlinx.serialization.Serializable
 data class SignalingMessage(
     val type: String,
     val sender: String,
-    val receiver: String,
+    val recipient: String,
     val payload: String
 )
