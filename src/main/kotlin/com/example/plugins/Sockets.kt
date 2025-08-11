@@ -1,3 +1,5 @@
+package com.example.plugins
+
 import io.ktor.server.application.*
 import io.ktor.server.websocket.*
 import kotlin.time.Duration.Companion.seconds // USAMOS LA IMPORTACIÓN DE KOTLIN

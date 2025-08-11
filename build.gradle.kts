@@ -8,7 +8,8 @@ group = "com.example"
 version = "0.0.1"
 
 application {
-    mainClass = "ApplicationKt"
+    // --- CORRECCIÓN --- Apuntamos a la clase principal con su paquete
+    mainClass.set("com.example.ApplicationKt")
 }
 
 dependencies {
