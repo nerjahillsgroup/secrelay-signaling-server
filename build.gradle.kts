@@ -2,7 +2,6 @@ plugins {
     id("org.jetbrains.kotlin.jvm") version "1.9.0"
     id("io.ktor.plugin") version "2.3.12"
     id("org.jetbrains.kotlin.plugin.serialization") version "1.9.0"
-    // --- CORRECCIÓN --- Usamos la sintaxis completa para el plugin shadow
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
@@ -15,6 +14,13 @@ application {
 
 repositories {
     mavenCentral()
+}
+
+// --- CORRECCIÓN --- Se establece la versión de Java para todo el proyecto
+// usando la toolchain de Kotlin/JVM. Esto garantiza que tanto la compilación
+// de Kotlin como la de Java usen la misma versión.
+kotlin {
+    jvmToolchain(17)
 }
 
 dependencies {
