@@ -1,19 +1,27 @@
-# Usamos una única imagen oficial de Gradle que ya contiene OpenJDK 17.
-# Esto es más robusto que instalar Java nosotros mismos.
-FROM gradle:7.6-jdk17
+# Usamos una imagen de OpenJDK 17 que sabemos que funciona en Render.
+FROM openjdk:17-jdk-slim
 
 # Establecemos el directorio de trabajo.
 WORKDIR /app
 
-# Copiamos todo el proyecto al contenedor.
-COPY . .
+# Copiamos solo los archivos de configuración de Gradle primero para aprovechar la caché de Docker.
+COPY build.gradle.kts settings.gradle.kts gradlew ./
+COPY gradle ./gradle
 
-# Ejecutamos la tarea de Gradle para crear un "fat jar".
-# Se añade --no-daemon para mayor compatibilidad en entornos de CI/CD.
-RUN gradle buildFatJar --no-daemon
+# Damos permisos de ejecución.
+RUN chmod +x ./gradlew
 
-# Exponemos el puerto estándar de Ktor.
+# Descargamos las dependencias. Si no cambian, este paso se cacheará en futuros builds.
+RUN ./gradlew dependencies
+
+# Copiamos el resto del código fuente.
+COPY src ./src
+
+# Usamos la tarea 'installDist' que crea un formato de distribución estándar en build/install.
+RUN ./gradlew installDist --no-daemon
+
+# Exponemos el puerto.
 EXPOSE 8080
 
-# El comando para iniciar el servidor.
-CMD ["java", "-jar", "build/libs/secrelay-signaling-server-0.0.1-all.jar"]
+# El comando final llama al script de lanzamiento generado por installDist.
+CMD ["build/install/secrelay-signaling-server/bin/secrelay-signaling-server"]
