@@ -57,7 +57,7 @@ fun Application.configureRouting() {
             println("--> User connected: $myPublicKey. Total connections: ${connections.size}")
 
             try {
-                // Ktor gestionará el timeout automáticamente gracias a la nueva configuración en Application.kt
+                // Lógica final y simple. Ktor gestionará la vida de la conexión.
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
                         val text = frame.readText()
