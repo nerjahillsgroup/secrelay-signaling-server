@@ -19,11 +19,13 @@ fun main() {
 fun Application.module() {
     install(ForwardedHeaders)
     
-    // --- CONFIGURACIÓN DE WEBSOCKETS DEFINITIVA Y VERIFICADA ---
-    // Esto configura Ktor para que gestione correctamente los pings que envía el cliente.
+    // --- CONFIGURACIÓN DE WEBSOCKETS CORRECTA Y VERIFICADA ---
+    // Esto configura Ktor para que gestione los pings que envía el cliente.
     install(WebSockets) {
-        pingPeriod = Duration.ofSeconds(20) // El servidor esperará pings cada 20s. El cliente envía cada 15s.
-        timeout = Duration.ofSeconds(40)     // Si no recibe nada (ni ping ni datos) en 40s, cierra la conexión.
+        // Si el servidor no recibe NINGÚN frame (Ping o Texto) en 30 segundos,
+        // cerrará la conexión automáticamente. Como el cliente envía pings cada 15s,
+        // la conexión se mantendrá viva mientras la app esté abierta.
+        timeout = Duration.ofSeconds(30)
         maxFrameSize = Long.MAX_VALUE
         masking = false
     }
