@@ -6,8 +6,9 @@ import com.example.plugins.configureSockets
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
-// --- AÑADIDO --- Importación necesaria para el plugin de proxy.
 import io.ktor.server.plugins.forwardedheaders.*
+import io.ktor.server.websocket.* // --- IMPORTACIÓN NECESARIA ---
+import java.time.Duration         // --- IMPORTACIÓN NECESARIA ---
 
 fun main() {
     FirebaseAdmin.initializeFCM()
@@ -17,11 +18,17 @@ fun main() {
 }
 
 fun Application.module() {
-    // --- AÑADIDO --- Se instala el plugin para manejar cabeceras de proxy.
-    // Esto es CRUCIAL para que los WebSockets (wss://) funcionen detrás de un proxy como el de Render.
     install(ForwardedHeaders)
     
+    // --- CAMBIO: Se instala y configura el plugin de WebSockets aquí ---
+    install(WebSockets) {
+        pingPeriod = Duration.ofSeconds(15)
+        timeout = Duration.ofSeconds(30)
+        maxFrameSize = Long.MAX_VALUE
+        masking = false
+    }
+    
     configureSerialization()
-    configureSockets()
+    // configureSockets() // Esta línea puede que ya no sea necesaria si se configura aquí. La comentamos por ahora.
     configureRouting()
 }

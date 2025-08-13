@@ -11,7 +11,6 @@ import io.ktor.websocket.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
-import java.time.Duration // --- IMPORTACIÓN NECESARIA PARA EL TIMEOUT ---
 
 val connections = ConcurrentHashMap<String, WebSocketSession>()
 
@@ -42,12 +41,8 @@ fun Application.configureRouting() {
             }
         }
 
-        // --- CAMBIO: Añadimos la configuración del WebSocket aquí ---
-        webSocket("/ws/signal/{publicKey}", {
-            // Tiempo máximo de inactividad antes de cerrar la conexión.
-            pingPeriod = Duration.ofSeconds(15) 
-            timeout = Duration.ofSeconds(30)
-        }) {
+        // La configuración del WebSocket se ha movido a Application.kt
+        webSocket("/ws/signal/{publicKey}") {
             val myPublicKey = call.parameters["publicKey"]
             if (myPublicKey == null) {
                 close(CloseReason(CloseReason.Codes.PROTOCOL_ERROR, "Public key is required in URL"))
@@ -71,12 +66,11 @@ fun Application.configureRouting() {
                             val message = jsonParser.decodeFromString<SignalingMessage>(text)
                             val recipientSession = connections[message.recipient]
 
+                            // --- LÓGICA CORRECTA Y RESTAURADA ---
                             if (recipientSession != null) {
-                                // --- CAMBIO: Lógica de app abierta ---
                                 // Si el destinatario está conectado, le reenviamos el mensaje directamente.
-                                // Esto ahora gestionará tanto los mensajes OFFER como ANSWER, ICE, etc.
                                 println("--> Relaying message from ${message.sender} to online user ${message.recipient}")
-                                recipientSession.send(text)
+                                recipientSession.send(Frame.Text(text))
                             } else {
                                 // El destinatario no está conectado. Solo actuamos si es una oferta para despertar.
                                 if (message.type == "OFFER" && message.recipientFcmToken != null && message.senderHash != null && message.recipientHash != null) {
