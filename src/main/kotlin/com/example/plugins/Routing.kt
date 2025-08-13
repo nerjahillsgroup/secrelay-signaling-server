@@ -14,22 +14,25 @@ import java.util.concurrent.ConcurrentHashMap
 
 val connections = ConcurrentHashMap<String, WebSocketSession>()
 
-// --- AÑADIDO --- Modelo de datos para la petición de prueba.
+// --- CONFIGURACIÓN DEL PARSER DE JSON ---
+// Configuramos el parser para que sea más robusto y no falle si recibe campos desconocidos.
+val jsonParser = Json { ignoreUnknownKeys = true }
+
 @Serializable
 data class TestFcmRequest(val token: String)
 
 fun Application.configureRouting() {
     routing {
-        // --- AÑADIDO --- Nueva ruta POST para probar el envío de notificaciones.
         post("/test-fcm") {
             try {
                 val request = call.receive<TestFcmRequest>()
                 if (request.token.isNotBlank()) {
                     println("--> Recibida petición de prueba para el token: ${request.token}")
-                    // Usamos el FCMManager con datos de prueba.
+                    // Actualizamos la llamada para que coincida con la nueva firma de la función.
                     FCMManager.sendIncomingCallNotification(
                         recipientFcmToken = request.token,
-                        senderPublicKey = "SERVIDOR_DE_PRUEBAS",
+                        senderHash = "HASH_SERVIDOR_DE_PRUEBAS",
+                        recipientHash = "HASH_SERVIDOR_DE_PRUEBAS",
                         offerPayload = "ESTO_ES_UNA_PRUEBA"
                     )
                     call.respondText("Petición de notificación de prueba enviada al token: ${request.token}")
@@ -56,22 +59,25 @@ fun Application.configureRouting() {
                     if (frame is Frame.Text) {
                         val text = frame.readText()
                         try {
-                            val message = Json.decodeFromString<SignalingMessage>(text)
+                            // Usamos nuestro parser configurado
+                            val message = jsonParser.decodeFromString<SignalingMessage>(text)
                             val recipientSession = connections[message.recipient]
 
                             if (recipientSession != null) {
                                 println("--> Relaying message from ${message.sender} to ${message.recipient}")
                                 recipientSession.send(text)
                             } else {
-                                if (message.type == "OFFER" && message.recipientFcmToken != null) {
-                                    println("--> Recipient ${message.recipient} not found. Sending FCM notification.")
+                                // --- LÓGICA DE OFUSCACIÓN (INICIO) ---
+                                if (message.type == "OFFER" && message.recipientFcmToken != null && message.senderHash != null && message.recipientHash != null) {
+                                    println("--> Recipient ${message.recipient} not found. Sending OBFUSCATED FCM notification.")
                                     FCMManager.sendIncomingCallNotification(
                                         recipientFcmToken = message.recipientFcmToken,
-                                        senderPublicKey = message.sender,
+                                        senderHash = message.senderHash,
+                                        recipientHash = message.recipientHash,
                                         offerPayload = message.payload
                                     )
                                 } else {
-                                    println("--> Recipient ${message.recipient} not found and no FCM info. Message dropped.")
+                                    println("--> Recipient ${message.recipient} not found and no valid FCM/Hash info. Message dropped.")
                                 }
                             }
                         } catch (e: Exception) {

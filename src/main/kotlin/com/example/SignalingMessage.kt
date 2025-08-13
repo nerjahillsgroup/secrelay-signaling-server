@@ -8,8 +8,8 @@ data class SignalingMessage(
     val sender: String,
     val recipient: String,
     val payload: String,
-    // --- AÑADIDO --- Token FCM del destinatario.
-    // Es opcional (nullable) porque solo es necesario para el mensaje "OFFER" inicial,
-    // que actúa como "timbre" si el destinatario no está conectado.
-    val recipientFcmToken: String? = null
+    val recipientFcmToken: String? = null,
+    // --- CAMPOS AÑADIDOS PARA OFUSCACIÓN ---
+    val senderHash: String? = null,
+    val recipientHash: String? = null
 )
