@@ -2,13 +2,12 @@ package com.example
 
 import com.example.plugins.configureRouting
 import com.example.plugins.configureSerialization
-// import com.example.plugins.configureSockets // Eliminamos esta importación, ya no se usa.
+import com.example.plugins.configureSockets
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.forwardedheaders.*
 import io.ktor.server.websocket.*
-import java.time.Duration
 
 fun main() {
     FirebaseAdmin.initializeFCM()
@@ -19,18 +18,11 @@ fun main() {
 
 fun Application.module() {
     install(ForwardedHeaders)
-    
-    install(WebSockets) {
-        // Esta es la configuración correcta. El servidor enviará pings cada 15s.
-        // El cliente responderá automáticamente (es un comportamiento estándar de WebSocket).
-        // Si el cliente no responde a tiempo, el timeout lo desconectará.
-        pingPeriod = Duration.ofSeconds(15) 
-        timeout = Duration.ofSeconds(30) 
-        maxFrameSize = Long.MAX_VALUE
-        masking = false
-    }
+    install(WebSockets) // Instalación simple, sin configuración de timeout aquí.
     
     configureSerialization()
-    // configureSockets() ya no es necesaria.
+    // La llamada a configureSockets() es redundante si solo instala WebSockets, pero no hace daño.
+    // Si tienes un archivo Sockets.kt, asegúrate de que solo contenga 'fun Application.configureSockets() { install(WebSockets) }'
+    configureSockets() 
     configureRouting()
 }

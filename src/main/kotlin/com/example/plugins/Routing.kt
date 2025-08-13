@@ -8,8 +8,10 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.time.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 
 val connections = ConcurrentHashMap<String, WebSocketSession>()
@@ -57,7 +59,14 @@ fun Application.configureRouting() {
             println("--> User connected: $myPublicKey. Total connections: ${connections.size}")
 
             try {
-                for (frame in incoming) {
+                // --- TIMEOUT MANUAL Y ROBUSTO ---
+                // Procesamos mensajes entrantes, pero si no llega nada en 30 segundos,
+                // withTimeoutOrNull devolverá null y el bucle terminará, cerrando la conexión.
+                while (true) {
+                    val frame = withTimeoutOrNull(Duration.ofSeconds(30)) {
+                        incoming.receive()
+                    } ?: break // Si es null (timeout), salimos del bucle.
+
                     if (frame is Frame.Text) {
                         val text = frame.readText()
                         try {
@@ -66,8 +75,6 @@ fun Application.configureRouting() {
 
                             if (recipientSession != null) {
                                 println("--> Relaying message from ${message.sender} to online user ${message.recipient}")
-                                // --- CORRECCIÓN CRÍTICA ---
-                                // Usamos Frame.Text para enviar el mensaje, no texto plano.
                                 recipientSession.send(Frame.Text(text))
                             } else {
                                 if (message.type == "OFFER" && message.recipientFcmToken != null && message.senderHash != null && message.recipientHash != null) {
@@ -90,7 +97,7 @@ fun Application.configureRouting() {
             } catch (e: Exception) {
                 println("--> Error for user $myPublicKey: ${e.localizedMessage}")
             } finally {
-                println("--> User disconnected: $myPublicKey")
+                println("--> User disconnected by timeout or closing: $myPublicKey")
                 connections.remove(myPublicKey)
                 println("--> Total connections: ${connections.size}")
             }
