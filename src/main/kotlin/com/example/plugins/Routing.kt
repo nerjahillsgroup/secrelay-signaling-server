@@ -41,7 +41,6 @@ fun Application.configureRouting() {
             }
         }
 
-        // La configuración del WebSocket se ha movido a Application.kt
         webSocket("/ws/signal/{publicKey}") {
             val myPublicKey = call.parameters["publicKey"]
             if (myPublicKey == null) {
@@ -49,7 +48,6 @@ fun Application.configureRouting() {
                 return@webSocket
             }
 
-            // Evitamos que un usuario sobreescriba la sesión de otro. Si ya existe, cerramos la nueva.
             if (connections.containsKey(myPublicKey)) {
                 close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "User already connected."))
                 return@webSocket
@@ -66,13 +64,12 @@ fun Application.configureRouting() {
                             val message = jsonParser.decodeFromString<SignalingMessage>(text)
                             val recipientSession = connections[message.recipient]
 
-                            // --- LÓGICA CORRECTA Y RESTAURADA ---
                             if (recipientSession != null) {
-                                // Si el destinatario está conectado, le reenviamos el mensaje directamente.
                                 println("--> Relaying message from ${message.sender} to online user ${message.recipient}")
+                                // --- CORRECCIÓN CRÍTICA ---
+                                // Usamos Frame.Text para enviar el mensaje, no texto plano.
                                 recipientSession.send(Frame.Text(text))
                             } else {
-                                // El destinatario no está conectado. Solo actuamos si es una oferta para despertar.
                                 if (message.type == "OFFER" && message.recipientFcmToken != null && message.senderHash != null && message.recipientHash != null) {
                                     println("--> Recipient ${message.recipient} not found. Sending OBFUSCATED FCM notification.")
                                     FCMManager.sendIncomingCallNotification(
@@ -93,7 +90,6 @@ fun Application.configureRouting() {
             } catch (e: Exception) {
                 println("--> Error for user $myPublicKey: ${e.localizedMessage}")
             } finally {
-                // El bloque finally se ejecutará tanto en desconexión limpia como por timeout.
                 println("--> User disconnected: $myPublicKey")
                 connections.remove(myPublicKey)
                 println("--> Total connections: ${connections.size}")
