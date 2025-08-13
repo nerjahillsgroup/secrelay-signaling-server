@@ -7,32 +7,32 @@ import com.google.firebase.messaging.Message
 import com.google.firebase.messaging.Notification
 
 object FCMManager {
-    fun sendIncomingCallNotification(recipientFcmToken: String, senderPublicKey: String, offerPayload: String) {
-        // --- CONFIGURACIÓN ESPECÍFICA Y EXPLÍCITA PARA ANDROID ---
-        // Esto imita el comportamiento de alta prioridad de la consola de Firebase.
+    // --- CAMBIO: La firma de la función ahora usa los hashes para la ofuscación ---
+    fun sendIncomingCallNotification(recipientFcmToken: String, senderHash: String, recipientHash: String, offerPayload: String) {
         val androidConfig = AndroidConfig.builder()
-            .setPriority(AndroidConfig.Priority.HIGH) // Prioridad máxima
-            .setTtl(0) // Tiempo de vida 0 segundos, entrega inmediata o nunca
+            .setPriority(AndroidConfig.Priority.HIGH)
+            .setTtl(0)
             .setNotification(
                 AndroidNotification.builder()
-                    .setTitle("Llamada Entrante")
+                    .setTitle("Lamada Entrante")
                     .setBody("Estás recibiendo una llamada en Secrelay.")
-                    .setChannelId("INCOMING_CALL_CHANNEL_ID") // Es CRUCIAL que coincida con el canal en la app
+                    .setChannelId("INCOMING_CALL_CHANNEL_ID")
                     .build()
             )
             .build()
 
         val message = Message.builder()
-            // El bloque .setNotification() es opcional si se usa AndroidConfig, pero lo dejamos por compatibilidad.
             .setNotification(Notification.builder()
-                .setTitle("Llamada Entrante")
+                .setTitle("Lamada Entrante")
                 .setBody("Estás recibiendo una llamada en Secrelay.")
                 .build())
+            // --- CAMBIO: El payload ahora contiene los hashes con claves claras y consistentes ---
             .putData("type", "INCOMING_CALL")
-            .putData("senderPublicKey", senderPublicKey)
             .putData("offerPayload", offerPayload)
+            .putData("call_sender_hash", senderHash)
+            .putData("call_recipient_hash", recipientHash)
             .setToken(recipientFcmToken)
-            .setAndroidConfig(androidConfig) // <-- LA PARTE MÁS IMPORTANTE
+            .setAndroidConfig(androidConfig)
             .build()
 
         try {
