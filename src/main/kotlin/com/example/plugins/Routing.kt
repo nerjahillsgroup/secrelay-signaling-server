@@ -11,11 +11,10 @@ import io.ktor.websocket.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
+import java.time.Duration // --- IMPORTACIÓN NECESARIA PARA EL TIMEOUT ---
 
 val connections = ConcurrentHashMap<String, WebSocketSession>()
 
-// --- CONFIGURACIÓN DEL PARSER DE JSON ---
-// Configuramos el parser para que sea más robusto y no falle si recibe campos desconocidos.
 val jsonParser = Json { ignoreUnknownKeys = true }
 
 @Serializable
@@ -28,7 +27,6 @@ fun Application.configureRouting() {
                 val request = call.receive<TestFcmRequest>()
                 if (request.token.isNotBlank()) {
                     println("--> Recibida petición de prueba para el token: ${request.token}")
-                    // Actualizamos la llamada para que coincida con la nueva firma de la función.
                     FCMManager.sendIncomingCallNotification(
                         recipientFcmToken = request.token,
                         senderHash = "HASH_SERVIDOR_DE_PRUEBAS",
@@ -44,10 +42,21 @@ fun Application.configureRouting() {
             }
         }
 
-        webSocket("/ws/signal/{publicKey}") {
+        // --- CAMBIO: Añadimos la configuración del WebSocket aquí ---
+        webSocket("/ws/signal/{publicKey}", {
+            // Tiempo máximo de inactividad antes de cerrar la conexión.
+            pingPeriod = Duration.ofSeconds(15) 
+            timeout = Duration.ofSeconds(30)
+        }) {
             val myPublicKey = call.parameters["publicKey"]
             if (myPublicKey == null) {
                 close(CloseReason(CloseReason.Codes.PROTOCOL_ERROR, "Public key is required in URL"))
+                return@webSocket
+            }
+
+            // Evitamos que un usuario sobreescriba la sesión de otro. Si ya existe, cerramos la nueva.
+            if (connections.containsKey(myPublicKey)) {
+                close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "User already connected."))
                 return@webSocket
             }
 
@@ -59,15 +68,17 @@ fun Application.configureRouting() {
                     if (frame is Frame.Text) {
                         val text = frame.readText()
                         try {
-                            // Usamos nuestro parser configurado
                             val message = jsonParser.decodeFromString<SignalingMessage>(text)
                             val recipientSession = connections[message.recipient]
 
                             if (recipientSession != null) {
-                                println("--> Relaying message from ${message.sender} to ${message.recipient}")
+                                // --- CAMBIO: Lógica de app abierta ---
+                                // Si el destinatario está conectado, le reenviamos el mensaje directamente.
+                                // Esto ahora gestionará tanto los mensajes OFFER como ANSWER, ICE, etc.
+                                println("--> Relaying message from ${message.sender} to online user ${message.recipient}")
                                 recipientSession.send(text)
                             } else {
-                                // --- LÓGICA DE OFUSCACIÓN (INICIO) ---
+                                // El destinatario no está conectado. Solo actuamos si es una oferta para despertar.
                                 if (message.type == "OFFER" && message.recipientFcmToken != null && message.senderHash != null && message.recipientHash != null) {
                                     println("--> Recipient ${message.recipient} not found. Sending OBFUSCATED FCM notification.")
                                     FCMManager.sendIncomingCallNotification(
@@ -88,6 +99,7 @@ fun Application.configureRouting() {
             } catch (e: Exception) {
                 println("--> Error for user $myPublicKey: ${e.localizedMessage}")
             } finally {
+                // El bloque finally se ejecutará tanto en desconexión limpia como por timeout.
                 println("--> User disconnected: $myPublicKey")
                 connections.remove(myPublicKey)
                 println("--> Total connections: ${connections.size}")
