@@ -57,7 +57,6 @@ fun Application.configureRouting() {
             println("--> User connected: $myPublicKey. Total connections: ${connections.size}")
 
             try {
-                // Lógica final y simple. Ktor gestionará la vida de la conexión.
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
                         val text = frame.readText()
@@ -65,12 +64,15 @@ fun Application.configureRouting() {
                             val message = jsonParser.decodeFromString<SignalingMessage>(text)
                             val recipientSession = connections[message.recipient]
 
+                            // --- INICIO DE LA MODIFICACIÓN ---
                             if (recipientSession != null) {
-                                println("--> Relaying message from ${message.sender} to online user ${message.recipient}")
+                                // Si el destinatario está online, le retransmitimos CUALQUIER tipo de mensaje.
+                                println("--> Retransmitiendo ${message.type} de ${message.sender.take(10)} a ${message.recipient.take(10)}")
                                 recipientSession.send(Frame.Text(text))
                             } else {
+                                // Si el destinatario está OFFLINE, solo nos importa si es un "OFFER".
                                 if (message.type == "OFFER" && message.recipientFcmToken != null && message.senderHash != null && message.recipientHash != null) {
-                                    println("--> Recipient ${message.recipient} not found. Sending OBFUSCATED FCM notification.")
+                                    println("--> Destinatario de OFFER offline. Enviando notificación FCM ofuscada.")
                                     FCMManager.sendIncomingCallNotification(
                                         recipientFcmToken = message.recipientFcmToken,
                                         senderHash = message.senderHash,
@@ -78,9 +80,13 @@ fun Application.configureRouting() {
                                         offerPayload = message.payload
                                     )
                                 } else {
-                                    println("--> Recipient ${message.recipient} not found and no valid FCM/Hash info. Message dropped.")
+                                    // Si es cualquier otro tipo de mensaje (ANSWER, ICE, o nuestro nuevo RELAY_MSG)
+                                    // y el usuario no está online, no podemos hacer nada. El mensaje se descarta.
+                                    println("--> Destinatario ${message.recipient.take(10)} no encontrado para mensaje tipo ${message.type}. Mensaje descartado.")
                                 }
                             }
+                            // --- FIN DE LA MODIFICACIÓN ---
+                            
                         } catch (e: Exception) {
                             println("--> Error decoding message: ${e.message}")
                         }
