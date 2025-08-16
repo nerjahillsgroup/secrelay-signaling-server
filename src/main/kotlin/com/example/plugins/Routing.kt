@@ -64,28 +64,28 @@ fun Application.configureRouting() {
                             val message = jsonParser.decodeFromString<SignalingMessage>(text)
                             val recipientSession = connections[message.recipient]
 
-                            // --- INICIO DE LA MODIFICACIÓN ---
                             if (recipientSession != null) {
                                 // Si el destinatario está online, le retransmitimos CUALQUIER tipo de mensaje.
                                 println("--> Retransmitiendo ${message.type} de ${message.sender.take(10)} a ${message.recipient.take(10)}")
                                 recipientSession.send(Frame.Text(text))
                             } else {
-                                // Si el destinatario está OFFLINE, solo nos importa si es un "OFFER".
-                                if (message.type == "OFFER" && message.recipientFcmToken != null && message.senderHash != null && message.recipientHash != null) {
-                                    println("--> Destinatario de OFFER offline. Enviando notificación FCM ofuscada.")
+                                // Si está offline, ahora actuamos si es un OFFER o un CHAT_REQUEST.
+                                // --- INICIO DE LA MODIFICACIÓN ---
+                                if ((message.type == "OFFER" || message.type == "CHAT_REQUEST") && message.recipientFcmToken != null && message.senderHash != null && message.recipientHash != null) {
+                                    println("--> Destinatario de ${message.type} offline. Enviando notificación FCM ofuscada.")
                                     FCMManager.sendIncomingCallNotification(
                                         recipientFcmToken = message.recipientFcmToken,
                                         senderHash = message.senderHash,
                                         recipientHash = message.recipientHash,
-                                        offerPayload = message.payload
+                                        offerPayload = message.payload // Reutilizamos este campo para la "invitación"
                                     )
                                 } else {
-                                    // Si es cualquier otro tipo de mensaje (ANSWER, ICE, o nuestro nuevo RELAY_MSG)
+                                    // Si es cualquier otro tipo de mensaje (ANSWER, ICE, o nuestro RELAY_MSG)
                                     // y el usuario no está online, no podemos hacer nada. El mensaje se descarta.
                                     println("--> Destinatario ${message.recipient.take(10)} no encontrado para mensaje tipo ${message.type}. Mensaje descartado.")
                                 }
+                                // --- FIN DE LA MODIFICACIÓN ---
                             }
-                            // --- FIN DE LA MODIFICACIÓN ---
                             
                         } catch (e: Exception) {
                             println("--> Error decoding message: ${e.message}")
