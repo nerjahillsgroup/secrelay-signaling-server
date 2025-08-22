@@ -26,6 +26,7 @@ fun Application.configureRouting() {
                 val request = call.receive<TestFcmRequest>()
                 if (request.token.isNotBlank()) {
                     println("--> Recibida petición de prueba para el token: ${request.token}")
+                    // NOTA: Tu FCMManager espera un 'offerPayload', lo mantenemos por compatibilidad.
                     FCMManager.sendIncomingCallNotification(
                         recipientFcmToken = request.token,
                         senderHash = "HASH_SERVIDOR_DE_PRUEBAS",
@@ -69,22 +70,28 @@ fun Application.configureRouting() {
                                 println("--> Retransmitiendo ${message.type} de ${message.sender.take(10)} a ${message.recipient.take(10)}")
                                 recipientSession.send(Frame.Text(text))
                             } else {
-                                // Si está offline, ahora actuamos si es un OFFER o un CHAT_REQUEST.
-                                // --- INICIO DE LA MODIFICACIÓN ---
-                                if ((message.type == "OFFER" || message.type == "CHAT_REQUEST") && message.recipientFcmToken != null && message.senderHash != null && message.recipientHash != null) {
-                                    println("--> Destinatario de ${message.type} offline. Enviando notificación FCM ofuscada.")
+                                // --- INICIO DE LA CORRECCIÓN CRÍTICA ---
+                                // Si el destinatario está offline, SOLO actuamos si el mensaje es un CALL_REQUEST
+                                // y contiene todos los datos necesarios para enviar un push.
+                                if (message.type == "CALL_REQUEST" &&
+                                    message.recipientFcmToken != null &&
+                                    message.senderHash != null &&
+                                    message.recipientHash != null
+                                ) {
+                                    println("--> Destinatario de ${message.type} offline. Enviando notificación FCM.")
                                     FCMManager.sendIncomingCallNotification(
                                         recipientFcmToken = message.recipientFcmToken,
                                         senderHash = message.senderHash,
                                         recipientHash = message.recipientHash,
-                                        offerPayload = message.payload // Reutilizamos este campo para la "invitación"
+                                        // Mantenemos el uso del campo 'payload' como lo espera tu FCMManager
+                                        offerPayload = message.payload 
                                     )
                                 } else {
-                                    // Si es cualquier otro tipo de mensaje (ANSWER, ICE, o nuestro RELAY_MSG)
+                                    // Si es cualquier otro tipo de mensaje (RELAY_MSG, CALL_END, etc.)
                                     // y el usuario no está online, no podemos hacer nada. El mensaje se descarta.
                                     println("--> Destinatario ${message.recipient.take(10)} no encontrado para mensaje tipo ${message.type}. Mensaje descartado.")
                                 }
-                                // --- FIN DE LA MODIFICACIÓN ---
+                                // --- FIN DE LA CORRECCIÓN ---
                             }
                             
                         } catch (e: Exception) {
