@@ -9,6 +9,7 @@ import io.ktor.server.plugins.forwardedheaders.*
 import io.ktor.server.websocket.*
 
 fun main() {
+    TinkConfig.register()
     FirebaseAdmin.initializeFCM()
 
     embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)

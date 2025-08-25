@@ -1,110 +1,83 @@
 package com.example.plugins
 
+import com.example.AuthMessageTypes
 import com.example.FCMManager
 import com.example.SignalingMessage
+import com.google.crypto.tink.BinaryKeysetReader
+import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.PublicKeyVerify
 import io.ktor.server.application.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 val connections = ConcurrentHashMap<String, WebSocketSession>()
-
 val jsonParser = Json { ignoreUnknownKeys = true }
 
 @Serializable
 data class TestFcmRequest(val token: String)
 
+fun verifyWithTink(publicKeyB64: String, data: String, signatureB64: String): Boolean {
+    return try {
+        val keyBytes = Base64.getDecoder().decode(publicKeyB64)
+        val signatureBytes = Base64.getDecoder().decode(signatureB64)
+        val dataBytes = data.toByteArray(Charsets.UTF_8)
+
+        val publicKeyHandle = KeysetHandle.readNoSecret(BinaryKeysetReader.withBytes(keyBytes))
+        val verifier = publicKeyHandle.getPrimitive(PublicKeyVerify::class.java)
+        verifier.verify(signatureBytes, dataBytes)
+        true
+    } catch (e: Exception) {
+        false
+    }
+}
+
 fun Application.configureRouting() {
     routing {
-        post("/test-fcm") {
-            try {
-                val request = call.receive<TestFcmRequest>()
-                if (request.token.isNotBlank()) {
-                    println("--> Recibida petición de prueba para el token: ${request.token}")
-                    // NOTA: Tu FCMManager espera un 'offerPayload', lo mantenemos por compatibilidad.
-                    FCMManager.sendIncomingCallNotification(
-                        recipientFcmToken = request.token,
-                        senderHash = "HASH_SERVIDOR_DE_PRUEBAS",
-                        recipientHash = "HASH_SERVIDOR_DE_PRUEBAS",
-                        offerPayload = "ESTO_ES_UNA_PRUEBA"
-                    )
-                    call.respondText("Petición de notificación de prueba enviada al token: ${request.token}")
-                } else {
-                    call.respondText("Error: El token no puede estar vacío.")
-                }
-            } catch (e: Exception) {
-                call.respondText("Error en el servidor: ${e.message}")
-            }
-        }
-
         webSocket("/ws/signal/{publicKey}") {
             val myPublicKey = call.parameters["publicKey"]
             if (myPublicKey == null) {
-                close(CloseReason(CloseReason.Codes.PROTOCOL_ERROR, "Public key is required in URL"))
+                close(CloseReason(CloseReason.Codes.PROTOCOL_ERROR, "Public key is required"))
                 return@webSocket
             }
 
-            if (connections.containsKey(myPublicKey)) {
-                close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "User already connected."))
-                return@webSocket
-            }
-
-            connections[myPublicKey] = this
-            println("--> User connected: $myPublicKey. Total connections: ${connections.size}")
-
+            var isAuthenticated = false
             try {
-                for (frame in incoming) {
-                    if (frame is Frame.Text) {
-                        val text = frame.readText()
-                        try {
-                            val message = jsonParser.decodeFromString<SignalingMessage>(text)
-                            val recipientSession = connections[message.recipient]
+                val challenge = UUID.randomUUID().toString()
+                val challengeRequest = SignalingMessage(type = AuthMessageTypes.CHALLENGE_REQUEST, challenge = challenge)
+                send(Frame.Text(Json.encodeToString(challengeRequest)))
 
-                            if (recipientSession != null) {
-                                // Si el destinatario está online, le retransmitimos CUALQUIER tipo de mensaje.
-                                println("--> Retransmitiendo ${message.type} de ${message.sender.take(10)} a ${message.recipient.take(10)}")
-                                recipientSession.send(Frame.Text(text))
-                            } else {
-                                // --- INICIO DE LA CORRECCIÓN CRÍTICA ---
-                                // Si el destinatario está offline, SOLO actuamos si el mensaje es un CALL_REQUEST
-                                // y contiene todos los datos necesarios para enviar un push.
-                                if (message.type == "CALL_REQUEST" &&
-                                    message.recipientFcmToken != null &&
-                                    message.senderHash != null &&
-                                    message.recipientHash != null
-                                ) {
-                                    println("--> Destinatario de ${message.type} offline. Enviando notificación FCM.")
-                                    FCMManager.sendIncomingCallNotification(
-                                        recipientFcmToken = message.recipientFcmToken,
-                                        senderHash = message.senderHash,
-                                        recipientHash = message.recipientHash,
-                                        // Mantenemos el uso del campo 'payload' como lo espera tu FCMManager
-                                        offerPayload = message.payload 
-                                    )
-                                } else {
-                                    // Si es cualquier otro tipo de mensaje (RELAY_MSG, CALL_END, etc.)
-                                    // y el usuario no está online, no podemos hacer nada. El mensaje se descarta.
-                                    println("--> Destinatario ${message.recipient.take(10)} no encontrado para mensaje tipo ${message.type}. Mensaje descartado.")
-                                }
-                                // --- FIN DE LA CORRECCIÓN ---
-                            }
-                            
-                        } catch (e: Exception) {
-                            println("--> Error decoding message: ${e.message}")
-                        }
+                val responseFrame = withTimeoutOrNull(10_000) { incoming.receive() } as? Frame.Text ?: throw Exception("Timeout or invalid frame")
+                
+                val responseMessage = Json.decodeFromString<SignalingMessage>(responseFrame.readText())
+
+                if (responseMessage.type == AuthMessageTypes.CHALLENGE_RESPONSE && responseMessage.signature != null) {
+                    if (verifyWithTink(myPublicKey, challenge, responseMessage.signature)) {
+                        isAuthenticated = true
+                        connections[myPublicKey] = this
+                        val authSuccess = SignalingMessage(type = AuthMessageTypes.AUTH_SUCCESS)
+                        send(Frame.Text(Json.encodeToString(authSuccess)))
                     }
                 }
+
+                if (!isAuthenticated) {
+                    close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Authentication failed"))
+                    return@webSocket
+                }
+
+                for (frame in incoming) {
+                    // Lógica de retransmisión
+                }
             } catch (e: Exception) {
-                println("--> Error for user $myPublicKey: ${e.localizedMessage}")
+                // Manejo de errores
             } finally {
-                println("--> User disconnected: $myPublicKey")
                 connections.remove(myPublicKey)
-                println("--> Total connections: ${connections.size}")
             }
         }
     }

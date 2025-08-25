@@ -28,6 +28,7 @@ dependencies {
     implementation("io.ktor:ktor-server-netty:2.3.12")
     implementation("ch.qos.logback:logback-classic:1.4.14")
     implementation("com.google.firebase:firebase-admin:9.5.0")
+    implementation("com.google.crypto.tink:tink:1.12.0")
 
     // --- AÑADIDO --- Dependencia para el plugin de Forwarded Headers.
     implementation("io.ktor:ktor-server-forwarded-header:2.3.12")
