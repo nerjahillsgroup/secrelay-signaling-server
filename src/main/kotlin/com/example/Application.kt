@@ -2,6 +2,7 @@ package com.example
 
 import com.example.plugins.configureRouting
 import com.example.plugins.configureSerialization
+import com.google.crypto.tink.config.TinkConfig
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
@@ -18,7 +19,7 @@ fun main() {
 
 fun Application.module() {
     install(ForwardedHeaders)
-    install(WebSockets) // Instalación simple, sin ninguna configuración. Ktor usará valores por defecto seguros.
+    install(WebSockets) 
     
     configureSerialization()
     configureRouting()
