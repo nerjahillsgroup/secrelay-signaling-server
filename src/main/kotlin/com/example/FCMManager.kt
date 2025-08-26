@@ -1,45 +1,41 @@
 package com.example
 
-import com.google.firebase.messaging.AndroidConfig
-import com.google.firebase.messaging.AndroidNotification
+import com.google.auth.oauth2.GoogleCredentials
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.Message
-import com.google.firebase.messaging.Notification
+import java.io.FileInputStream
 
 object FCMManager {
-    // --- CAMBIO: La firma de la función ahora usa los hashes para la ofuscación ---
-    fun sendIncomingCallNotification(recipientFcmToken: String, senderHash: String, recipientHash: String, offerPayload: String) {
-        val androidConfig = AndroidConfig.builder()
-            .setPriority(AndroidConfig.Priority.HIGH)
-            .setTtl(0)
-            .setNotification(
-                AndroidNotification.builder()
-                    .setTitle("Lamada Entrante")
-                    .setBody("Estás recibiendo una llamada en Secrelay.")
-                    .setChannelId("INCOMING_CALL_CHANNEL_ID")
-                    .build()
-            )
-            .build()
 
-        val message = Message.builder()
-            .setNotification(Notification.builder()
-                .setTitle("Lamada Entrante")
-                .setBody("Estás recibiendo una llamada en Secrelay.")
-                .build())
-            // --- CAMBIO: El payload ahora contiene los hashes con claves claras y consistentes ---
-            .putData("type", "INCOMING_CALL")
-            .putData("offerPayload", offerPayload)
-            .putData("call_sender_hash", senderHash)
-            .putData("call_recipient_hash", recipientHash)
-            .setToken(recipientFcmToken)
-            .setAndroidConfig(androidConfig)
-            .build()
-
+    fun initialize() {
         try {
-            val response = FirebaseMessaging.getInstance().send(message)
-            println("--> Notificación FCM de alta prioridad enviada. Message ID: $response")
+            val serviceAccount = FileInputStream("/etc/secrets/firebase_key.json")
+
+            val options = FirebaseOptions.builder()
+                .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                .build()
+
+            if (FirebaseApp.getApps().isEmpty()) {
+                FirebaseApp.initializeApp(options)
+            }
         } catch (e: Exception) {
-            println("--> ERROR al enviar notificación FCM: ${e.message}")
+            println("ERROR: No se pudo inicializar Firebase Admin SDK. ${e.message}")
+        }
+    }
+
+    fun sendCallNotification(token: String, senderHash: String, recipientHash: String) {
+        try {
+            val message = Message.builder()
+                .putData("call_sender_hash", senderHash)
+                .putData("call_recipient_hash", recipientHash)
+                .setToken(token)
+                .build()
+
+            FirebaseMessaging.getInstance().send(message)
+        } catch (e: Exception) {
+            println("ERROR: No se pudo enviar notificación FCM. ${e.message}")
         }
     }
 }

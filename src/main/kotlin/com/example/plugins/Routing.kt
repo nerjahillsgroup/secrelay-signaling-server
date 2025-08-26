@@ -1,6 +1,7 @@
 package com.example.plugins
 
 import com.example.AuthMessageTypes
+import com.example.FCMManager
 import com.example.SignalingMessage
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeysetHandle
@@ -9,10 +10,8 @@ import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withTimeoutOrNull
-// --- INICIO DE LA CORRECCIÓN DEFINITIVA ---
-import kotlinx.coroutines.isActive // Este es el import que faltaba para resolver '.isActive'
-// --- FIN DE LA CORRECCIÓN DEFINITIVA ---
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.*
@@ -68,6 +67,7 @@ fun Application.configureRouting() {
                     if (verifyWithTink(myPublicKey, challenge, responseMessage.signature)) {
                         isAuthenticated = true
                         connections[myPublicKey] = this
+                        println("Usuario conectado: $myPublicKey. Conexiones activas: ${connections.size}")
                         val authSuccess = SignalingMessage(type = AuthMessageTypes.AUTH_SUCCESS)
                         send(Frame.Text(jsonParser.encodeToString(authSuccess)))
                     }
@@ -87,13 +87,16 @@ fun Application.configureRouting() {
                             if (recipientKey.isNullOrBlank()) continue
                             val recipientSession = connections[recipientKey]
 
-                            // La línea que comprueba si la sesión está activa, ahora con el import correcto.
                             if (recipientSession != null && recipientSession.coroutineContext.isActive) {
                                 recipientSession.send(Frame.Text(messageText))
                             } else {
                                 if (message.type == "CALL_REQUEST") {
                                     if (!message.recipientFcmToken.isNullOrBlank() && !message.senderHash.isNullOrBlank() && !message.recipientHash.isNullOrBlank()) {
-                                        println("Placeholder: Se enviaría una notificación FCM a ${message.recipientFcmToken}")
+                                        FCMManager.sendCallNotification(
+                                            token = message.recipientFcmToken,
+                                            senderHash = message.senderHash,
+                                            recipientHash = message.recipientHash
+                                        )
                                     }
                                 }
                             }
@@ -105,7 +108,10 @@ fun Application.configureRouting() {
             } catch (e: Exception) {
                 // Manejo de errores de conexión
             } finally {
-                connections.remove(myPublicKey)
+                if (myPublicKey != null) {
+                    connections.remove(myPublicKey)
+                    println("Usuario desconectado: $myPublicKey. Conexiones activas: ${connections.size}")
+                }
             }
         }
     }

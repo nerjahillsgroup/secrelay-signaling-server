@@ -12,8 +12,7 @@ import java.time.Duration
 
 fun main() {
     TinkConfig.register()
-    // TODO: Asegúrate de que tu clase FirebaseAdmin y su inicialización existan.
-    // FirebaseAdmin.initializeFCM()
+    FCMManager.initialize()
 
     embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
         .start(wait = true)
