@@ -87,7 +87,7 @@ fun Application.configureRouting() {
                             if (recipientKey.isNullOrBlank()) continue
                             val recipientSession = connections[recipientKey]
 
-                            if (recipientSession != null && recipientSession.isActive) {
+                            if (recipientSession != null && recipientSession.call.isActive) {
                                 recipientSession.send(Frame.Text(messageText))
                             } else {
                                 if (message.type == "CALL_REQUEST") {
