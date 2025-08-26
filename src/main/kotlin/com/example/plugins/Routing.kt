@@ -1,7 +1,6 @@
 package com.example.plugins
 
 import com.example.AuthMessageTypes
-import com.example.FCMManager
 import com.example.SignalingMessage
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeysetHandle
@@ -10,8 +9,10 @@ import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+// --- INICIO DE LA CORRECCIÓN ---
+import io.ktor.websocket.Frame // Import necesario para 'isActive'
+// --- FIN DE LA CORRECCIÓN ---
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.*
@@ -19,9 +20,6 @@ import java.util.concurrent.ConcurrentHashMap
 
 val connections = ConcurrentHashMap<String, WebSocketSession>()
 val jsonParser = Json { ignoreUnknownKeys = true }
-
-@Serializable
-data class TestFcmRequest(val token: String)
 
 fun verifyWithTink(publicKeyB64: String, data: String, signatureB64: String): Boolean {
     return try {
@@ -47,7 +45,6 @@ fun Application.configureRouting() {
                 return@webSocket
             }
 
-            // Evitar que un usuario se conecte dos veces o expulse a otro
             if (connections.containsKey(myPublicKey)) {
                 close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "User already connected"))
                 return@webSocket
@@ -55,7 +52,6 @@ fun Application.configureRouting() {
 
             var isAuthenticated = false
             try {
-                // --- FASE 1: Lógica de Autenticación (ya implementada) ---
                 val challenge = UUID.randomUUID().toString()
                 val challengeRequest = SignalingMessage(type = AuthMessageTypes.CHALLENGE_REQUEST, challenge = challenge)
                 send(Frame.Text(jsonParser.encodeToString(challengeRequest)))
@@ -71,7 +67,7 @@ fun Application.configureRouting() {
                 if (responseMessage.type == AuthMessageTypes.CHALLENGE_RESPONSE && responseMessage.signature != null) {
                     if (verifyWithTink(myPublicKey, challenge, responseMessage.signature)) {
                         isAuthenticated = true
-                        connections[myPublicKey] = this // Añadir a la lista de conexiones activas
+                        connections[myPublicKey] = this
                         val authSuccess = SignalingMessage(type = AuthMessageTypes.AUTH_SUCCESS)
                         send(Frame.Text(jsonParser.encodeToString(authSuccess)))
                     }
@@ -82,55 +78,37 @@ fun Application.configureRouting() {
                     return@webSocket
                 }
 
-                // --- INICIO DE LA MODIFICACIÓN: Lógica de Retransmisión ---
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
                         try {
                             val messageText = frame.readText()
                             val message = jsonParser.decodeFromString<SignalingMessage>(messageText)
-
                             val recipientKey = message.recipient
-                            if (recipientKey.isNullOrBlank()) continue // Ignorar mensajes sin destinatario
-
+                            if (recipientKey.isNullOrBlank()) continue
                             val recipientSession = connections[recipientKey]
 
-                            // Caso 1: El destinatario está conectado. Retransmitir el mensaje.
                             if (recipientSession != null && recipientSession.isActive) {
                                 recipientSession.send(Frame.Text(messageText))
-                            }
-                            // Caso 2: El destinatario NO está conectado.
-                            else {
-                                // Solo se envían notificaciones push para la solicitud de llamada inicial.
+                            } else {
                                 if (message.type == "CALL_REQUEST") {
-                                    if (!message.recipientFcmToken.isNullOrBlank() &&
-                                        !message.senderHash.isNullOrBlank() &&
-                                        !message.recipientHash.isNullOrBlank()) {
-
-                                        // NOTA: 'FirebaseAdmin.sendCallNotification' es un placeholder.
-                                        // Debes reemplazarlo con tu propia implementación de envío de FCM.
-                                        FirebaseAdmin.sendCallNotification(
-                                            token = message.recipientFcmToken,
-                                            senderHash = message.senderHash,
-                                            recipientHash = message.recipientHash
-                                        )
+                                    if (!message.recipientFcmToken.isNullOrBlank() && !message.senderHash.isNullOrBlank() && !message.recipientHash.isNullOrBlank()) {
+                                        // --- INICIO DE LA CORRECCIÓN ---
+                                        // TODO: Reemplazar esta línea con tu implementación real de envío de FCM.
+                                        // La línea original 'FirebaseAdmin.sendCallNotification(...)' se comenta para permitir la compilación.
+                                        println("Placeholder: Se enviaría una notificación FCM a ${message.recipientFcmToken}")
+                                        // --- FIN DE LA CORRECCIÓN ---
                                     }
                                 }
                             }
                         } catch (e: Exception) {
-                            // Ignorar mensajes malformados para no tumbar la conexión
-                            // Puedes añadir un log aquí si lo necesitas
+                            // Ignorar mensajes malformados
                         }
                     }
                 }
-                // --- FIN DE LA MODIFICACIÓN ---
-
             } catch (e: Exception) {
-                // Captura errores de conexión, timeouts, etc.
+                // Manejo de errores de conexión
             } finally {
-                // Asegurarse de que el usuario se elimina de la lista al desconectarse
-                if (myPublicKey != null) {
-                    connections.remove(myPublicKey)
-                }
+                connections.remove(myPublicKey)
             }
         }
     }
