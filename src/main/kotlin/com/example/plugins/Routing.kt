@@ -9,10 +9,10 @@ import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
-// --- INICIO DE LA CORRECCIÓN ---
-import io.ktor.websocket.Frame // Import necesario para 'isActive'
-// --- FIN DE LA CORRECCIÓN ---
 import kotlinx.coroutines.withTimeoutOrNull
+// --- INICIO DE LA CORRECCIÓN DEFINITIVA ---
+import kotlinx.coroutines.isActive // Este es el import que faltaba para resolver '.isActive'
+// --- FIN DE LA CORRECCIÓN DEFINITIVA ---
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.*
@@ -87,16 +87,15 @@ fun Application.configureRouting() {
                             if (recipientKey.isNullOrBlank()) continue
                             val recipientSession = connections[recipientKey]
 
-                            // --- INICIO DE LA CORRECCIÓN FINAL ---
+                            // La línea que comprueba si la sesión está activa, ahora con el import correcto.
                             if (recipientSession != null && recipientSession.coroutineContext.isActive) {
-                            // --- FIN DE LA CORRECCIÓN FINAL ---
                                 recipientSession.send(Frame.Text(messageText))
                             } else {
                                 if (message.type == "CALL_REQUEST") {
                                     if (!message.recipientFcmToken.isNullOrBlank() && !message.senderHash.isNullOrBlank() && !message.recipientHash.isNullOrBlank()) {
                                         println("Placeholder: Se enviaría una notificación FCM a ${message.recipientFcmToken}")
                                     }
-                                 }
+                                }
                             }
                         } catch (e: Exception) {
                             // Ignorar mensajes malformados
