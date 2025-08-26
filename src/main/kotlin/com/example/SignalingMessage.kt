@@ -12,7 +12,8 @@ data class SignalingMessage(
     val senderHash: String? = null,
     val recipientHash: String? = null,
     val challenge: String? = null,
-    val signature: String? = null
+    val signature: String? = null,
+    val ephemeralPublicKey: String? = null
 )
 
 object AuthMessageTypes {
