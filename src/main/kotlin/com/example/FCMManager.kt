@@ -19,6 +19,7 @@ object FCMManager {
 
             if (FirebaseApp.getApps().isEmpty()) {
                 FirebaseApp.initializeApp(options)
+                println("Firebase Admin SDK inicializado correctamente.")
             }
         } catch (e: Exception) {
             println("ERROR: No se pudo inicializar Firebase Admin SDK. ${e.message}")
@@ -34,6 +35,7 @@ object FCMManager {
                 .build()
 
             FirebaseMessaging.getInstance().send(message)
+            println("Notificación de llamada enviada correctamente a token: $token")
         } catch (e: Exception) {
             println("ERROR: No se pudo enviar notificación FCM. ${e.message}")
         }
