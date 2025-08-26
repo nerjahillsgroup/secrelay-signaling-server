@@ -35,7 +35,7 @@ object FCMManager {
                 .build()
 
             FirebaseMessaging.getInstance().send(message)
-            println("Notificación de llamada enviada correctamente a token: $token")
+            println("Notificación de llamada enviada correctamente al token: $token")
         } catch (e: Exception) {
             println("ERROR: No se pudo enviar notificación FCM. ${e.message}")
         }
