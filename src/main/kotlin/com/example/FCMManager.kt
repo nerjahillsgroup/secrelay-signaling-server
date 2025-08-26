@@ -11,7 +11,7 @@ object FCMManager {
 
     fun initialize() {
         try {
-            val serviceAccount = FileInputStream("/etc/secrets/firebase_key.json")
+            val serviceAccount = FileInputStream("/etc/secrets/GOOGLE_CREDENTIALS")
 
             val options = FirebaseOptions.builder()
                 .setCredentials(GoogleCredentials.fromStream(serviceAccount))
