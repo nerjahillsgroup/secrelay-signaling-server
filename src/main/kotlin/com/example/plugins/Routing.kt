@@ -87,18 +87,16 @@ fun Application.configureRouting() {
                             if (recipientKey.isNullOrBlank()) continue
                             val recipientSession = connections[recipientKey]
 
-                            if (recipientSession != null && recipientSession.call.isActive) {
+                            // --- INICIO DE LA CORRECCIÓN FINAL ---
+                            if (recipientSession != null && recipientSession.coroutineContext.isActive) {
+                            // --- FIN DE LA CORRECCIÓN FINAL ---
                                 recipientSession.send(Frame.Text(messageText))
                             } else {
                                 if (message.type == "CALL_REQUEST") {
                                     if (!message.recipientFcmToken.isNullOrBlank() && !message.senderHash.isNullOrBlank() && !message.recipientHash.isNullOrBlank()) {
-                                        // --- INICIO DE LA CORRECCIÓN ---
-                                        // TODO: Reemplazar esta línea con tu implementación real de envío de FCM.
-                                        // La línea original 'FirebaseAdmin.sendCallNotification(...)' se comenta para permitir la compilación.
                                         println("Placeholder: Se enviaría una notificación FCM a ${message.recipientFcmToken}")
-                                        // --- FIN DE LA CORRECCIÓN ---
                                     }
-                                }
+                                 }
                             }
                         } catch (e: Exception) {
                             // Ignorar mensajes malformados
