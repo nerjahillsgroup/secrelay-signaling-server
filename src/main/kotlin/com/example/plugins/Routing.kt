@@ -84,11 +84,9 @@ fun Application.configureRouting() {
                             val messageText = frame.readText()
                             val message = jsonParser.decodeFromString<SignalingMessage>(messageText)
 
-                            // --- ESTAS SON LAS LÍNEAS NUEVAS ---
                             if (message.type == "RELAY_MSG") {
                                 application.log.info("Retransmitiendo mensaje cifrado. Payload: ${message.payload?.take(30)}...")
                             }
-                            // --- FIN ---
 
                             val recipientKey = message.recipient
                             if (recipientKey.isNullOrBlank()) continue
