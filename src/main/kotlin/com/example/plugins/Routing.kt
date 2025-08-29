@@ -116,6 +116,19 @@ fun Application.configureRouting() {
                 if (myPublicKey != null) {
                     connections.remove(myPublicKey)
                     println("Usuario desconectado: $myPublicKey. Conexiones activas: ${connections.size}")
+
+                    // --- ESTA ES LA NUEVA LÓGICA ---
+                    // Notificamos a todos los demás que este usuario se ha desconectado.
+                    val disconnectMessage = SignalingMessage(
+                        type = "USER_DISCONNECTED",
+                        sender = myPublicKey // El payload es la clave del usuario que se fue
+                    )
+                    val disconnectMessageJson = jsonParser.encodeToString(disconnectMessage)
+                    connections.values.forEach { session ->
+                        if (session.coroutineContext.isActive) {
+                            session.send(Frame.Text(disconnectMessageJson))
+                        }
+                    }
                 }
             }
         }
